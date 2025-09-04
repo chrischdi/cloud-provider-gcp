@@ -24,7 +24,16 @@ cd "$(pwd -P)"
 KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 
 # update vendor/
-go mod vendor
+cat go.mod | grep '^go' > go.work
+go work use .
+go work use providers
+echo "replace (" >> go.work
+cat go.mod | grep '=>' | gazellerep -v "k8s.io/cloud-provider-gcp/providers" >> go.work
+echo ")" >> go.work
+
+cat go.mod | grep replace -A 100 | grep -v "k8s.io/cloud-provider-gcp/providers" >> go.work
+go work vendor
+
 # remove repo-originated BUILD files
 find vendor -type f \( \
     -name BUILD \
@@ -36,8 +45,6 @@ find vendor -type f \( \
 go mod tidy
 # create a symlink in vendor directory pointing cloud-provider-gcp/providers to the //providers.
 # This lets other packages and tools use the local staging components as if they were vendored.
-rm -fr "${KUBE_ROOT}/vendor/k8s.io/cloud-provider-gcp/providers"
-ln -s "../../../providers" "${KUBE_ROOT}/vendor/k8s.io/cloud-provider-gcp/providers"
 
 # restore BUILD files in vendor/
 bazel run //:gazelle
